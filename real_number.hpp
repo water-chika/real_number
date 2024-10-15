@@ -9,6 +9,9 @@
 namespace water {
 	namespace real_number {
 		struct rational_number {
+			rational_number() : rational_number{ 0 } {}
+			rational_number(std::integral auto i) : x{  static_cast<double>(i) } {}
+			rational_number(std::floating_point auto f) : x{ f } {}
 			double x;
 		};
 		struct real_number;
@@ -37,6 +40,10 @@ namespace water {
 		};
 
 		struct real_number {
+			real_number() : real_number{ 0.0 } {}
+			real_number(std::integral auto i) : real_number{ rational_number{i} } {}
+			real_number(std::floating_point auto i) : real_number{ rational_number{i} } {}
+			real_number(const rational_number& q) : exp{ q } {}
 			std::variant<rational_number,
 				sqrt_expr,
 				binary_expr<'+'>,
