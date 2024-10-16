@@ -6,14 +6,17 @@
 #include <iostream>
 #include <cassert>
 
+#include <rational_number.hpp>
+
 namespace water {
 	namespace real_number {
-		struct rational_number {
+		/*struct rational_number {
 			rational_number() : rational_number{ 0 } {}
 			rational_number(std::integral auto i) : x{  static_cast<double>(i) } {}
 			rational_number(std::floating_point auto f) : x{ f } {}
 			double x;
-		};
+		};*/
+		using rational_number = water::rational_number::rational_number<int64_t, int64_t>;
 		struct real_number;
 		struct sqrt_expr{
 			sqrt_expr();
@@ -54,7 +57,7 @@ namespace water {
 
 		inline std::ostream& operator<<(std::ostream& out, real_number r) {
 			if (std::holds_alternative<rational_number>(r.exp)) {
-				out << std::get<rational_number>(r.exp).x;
+				out << std::get<rational_number>(r.exp);
 			}
 			else if (std::holds_alternative<sqrt_expr>(r.exp)) {
 				out << "sqrt(" << *std::get<sqrt_expr>(r.exp).expr << ")";
@@ -87,7 +90,7 @@ namespace water {
 			real_number res{};
 			if (std::holds_alternative<rational_number>(lhs.exp) &&
 				std::holds_alternative<rational_number>(rhs.exp)) {
-				res.exp = rational_number{ std::get<rational_number>(lhs.exp).x + std::get<rational_number>(rhs.exp).x };
+				res.exp = rational_number{ std::get<rational_number>(lhs.exp) + std::get<rational_number>(rhs.exp) };
 			}
 			else {
 				res.exp = binary_expr<'+'>{lhs, rhs};
@@ -98,7 +101,7 @@ namespace water {
 			real_number res{};
 			if (std::holds_alternative<rational_number>(lhs.exp) &&
 				std::holds_alternative<rational_number>(rhs.exp)) {
-				res.exp = rational_number{ std::get<rational_number>(lhs.exp).x - std::get<rational_number>(rhs.exp).x };
+				res.exp = rational_number{ std::get<rational_number>(lhs.exp) - std::get<rational_number>(rhs.exp) };
 			}
 			else {
 				res.exp = binary_expr<'-'>{ lhs, rhs };
@@ -109,7 +112,7 @@ namespace water {
 			real_number res{};
 			if (std::holds_alternative<rational_number>(lhs.exp) &&
 				std::holds_alternative<rational_number>(rhs.exp)) {
-				res.exp = rational_number{ std::get<rational_number>(lhs.exp).x / std::get<rational_number>(rhs.exp).x };
+				res.exp = rational_number{ std::get<rational_number>(lhs.exp) / std::get<rational_number>(rhs.exp) };
 			}
 			else {
 				res.exp = binary_expr<'/'>{ lhs, rhs };
@@ -120,7 +123,7 @@ namespace water {
 			real_number res{};
 			if (std::holds_alternative<rational_number>(lhs.exp) &&
 				std::holds_alternative<rational_number>(rhs.exp)) {
-				res.exp = rational_number{ std::get<rational_number>(lhs.exp).x * std::get<rational_number>(rhs.exp).x };
+				res.exp = rational_number{ std::get<rational_number>(lhs.exp) * std::get<rational_number>(rhs.exp) };
 			}
 			else {
 				res.exp = binary_expr<'*'>{ lhs, rhs };
