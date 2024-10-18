@@ -97,6 +97,10 @@ namespace water {
 			}
 			return res;
 		}
+		inline real_number operator+=(real_number& lhs, const real_number& rhs) {
+			lhs = lhs + rhs;
+			return lhs;
+		}
 		inline real_number operator-(real_number lhs, real_number rhs) {
 			real_number res{};
 			if (std::holds_alternative<rational_number>(lhs.exp) &&
@@ -107,6 +111,10 @@ namespace water {
 				res.exp = binary_expr<'-'>{ lhs, rhs };
 			}
 			return res;
+		}
+		inline real_number operator-=(real_number& lhs, const real_number& rhs) {
+			lhs = lhs - rhs;
+			return lhs;
 		}
 		inline real_number operator/(real_number lhs, real_number rhs) {
 			real_number res{};
@@ -119,6 +127,10 @@ namespace water {
 			}
 			return res;
 		}
+		inline real_number operator/=(real_number& lhs, const real_number& rhs) {
+			lhs = lhs / rhs;
+			return lhs;
+		}
 		inline real_number operator*(real_number lhs, real_number rhs) {
 			real_number res{};
 			if (std::holds_alternative<rational_number>(lhs.exp) &&
@@ -129,6 +141,10 @@ namespace water {
 				res.exp = binary_expr<'*'>{ lhs, rhs };
 			}
 			return res;
+		}
+		inline real_number operator*=(real_number& lhs, const real_number& rhs) {
+			lhs = lhs * rhs;
+			return lhs;
 		}
 		inline real_number sqrt(real_number r) {
 			real_number res{};
