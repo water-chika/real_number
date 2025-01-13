@@ -13,7 +13,7 @@ namespace real_number {
     public:
         int64() = default;
         int64(int64_t v) : m_v{v} {}
-        auto value() {
+        auto value() const {
             return m_v;
         }
     private:
@@ -52,6 +52,12 @@ namespace real_number {
                 binary_expr<'/'>,
                 sqrt_expr
                 >;
+        static_assert(std::is_copy_assignable_v<expr_variant>
+                && std::is_copy_constructible_v<expr_variant>
+                );
+        using container_type = std::vector<
+            expr_variant
+            >;
         real_number(int64_t v) : m_expr{int64{v}} {}
         real_number() : real_number(0) {}
         real_number(expr_variant expr) : m_expr{expr} {}
@@ -67,6 +73,14 @@ namespace real_number {
                 m_expr[0] = typeof(expr){0};
                 std::ranges::copy(arg.m_expr, m_expr.begin() + 1);
             }
+        real_number(container_type::const_iterator begin, container_type::const_iterator end)
+            : m_expr{begin, end} {
+        }
+        real_number(expr_variant expr, container_type::const_iterator begin, container_type::const_iterator end)
+            : m_expr(1 + (end - begin)){
+                m_expr[0] = expr;
+                std::copy(begin, end, m_expr.begin() + 1);
+        }
 
         auto size() const {
             return static_cast<offset_t>(m_expr.size());
@@ -80,15 +94,37 @@ namespace real_number {
         auto end() const {
             return m_expr.end();
         }
+        auto& expr() const {
+            return m_expr;
+        }
     private:
-        static_assert(std::is_copy_assignable_v<expr_variant>
-                && std::is_copy_constructible_v<expr_variant>
-                );
-        std::vector<
-            expr_variant,
-            std::allocator<expr_variant>
-            > m_expr;
+        container_type m_expr;
     };
+
+    template<class T, class U>
+        requires (!std::same_as<T, U>)
+    bool expr_variant_equal(const T& lhs, const U& rhs) {
+        return false;
+    }
+    bool expr_variant_equal(const sqrt_expr& lhs, sqrt_expr& rhs) {
+        return true;
+    }
+    template<char OP>
+    bool expr_variant_equal(const binary_expr<OP>& lhs, binary_expr<OP>& rhs) {
+        return lhs.arg_offset(0) == rhs.arg_offset(0) &&
+            lhs.arg_offset(1) == rhs.arg_offset(1);
+    }
+    bool expr_variant_equal(const int64& lhs, const int64& rhs) {
+        return lhs.value() == rhs.value();
+    }
+    bool expr_variant_equal(const real_number::expr_variant& lhs, const real_number::expr_variant& rhs) {
+        return std::visit(
+                [](auto& lhs, auto& rhs) {
+                    return expr_variant_equal(lhs, rhs);
+                },
+                lhs, rhs);
+    }
+    std::ostream& operator<<(std::ostream& out, const real_number& v);
 
     real_number operator+(const real_number& lhs, const real_number& rhs) {
         return real_number{binary_expr<'+'>{}, lhs, rhs};
@@ -107,6 +143,87 @@ namespace real_number {
     }
 
     // deduce
+
+    real_number deduce_0_expr_mul(real_number::expr_variant expr, auto begin0, auto end0,
+            auto begin1, auto end1) {
+        if (std::holds_alternative<binary_expr<'+'>>(expr)) {
+            auto add_expr = std::get<binary_expr<'+'>>(expr);
+            auto muled = real_number{begin1, end1};
+            auto added0 = real_number{begin0, begin0+add_expr.arg_offset(1)};
+            auto added1 = real_number{begin0+add_expr.arg_offset(1), end0};
+            auto res = added0 * muled + added1 * muled;
+            return res;
+        }
+        else {
+            auto res = real_number{expr, begin0, end0} * real_number{begin1, end1};
+            return res;
+        }
+    }
+    template<char OP>
+    real_number deduce_0_expr(auto expr, auto begin, auto end) {
+        return expr;
+    }
+    real_number deduce_0_expr(binary_expr<'*'> expr, auto begin, auto end) {
+        return deduce_0_expr_mul(*begin, begin+1, begin+expr.arg_offset(1),
+                begin+expr.arg_offset(1), end);
+    }
+    real_number deduce_0_expr(real_number::expr_variant expr, auto begin, auto end) {
+        return std::visit(
+                [&begin, &end] (auto& t) {
+                    return deduce_0_expr(t, begin, end);
+                },
+                expr
+                );
+    }
+    real_number deduce_0(const real_number& v) {
+        return deduce_0_expr(v[0], v.begin()+1, v.end());
+    }
+
+    real_number deduce_1_expr_mul(real_number::expr_variant expr, auto begin0, auto end0,
+            auto begin1, auto end1) {
+        if (std::holds_alternative<sqrt_expr>(expr) &&
+                std::holds_alternative<sqrt_expr>(*begin1) &&
+                std::equal(begin0, end0, begin1+1, end1,
+                    [](auto& lhs, auto& rhs) {
+                        return expr_variant_equal(lhs, rhs);
+                        })
+                ) {
+            return real_number{begin0, end0};
+        }
+        else {
+            auto res = real_number{expr, begin0, end0} * real_number{begin1, end1};
+            return res;
+        }
+    }
+    real_number deduce_1_expr(auto expr, auto begin, auto end) {
+        return real_number{expr, begin, end};
+    }
+    template<char OP>
+    real_number deduce_1_expr(binary_expr<OP> expr, auto begin, auto end) {
+        return real_number{expr,
+            deduce_1_expr_variant(*begin, begin+1, begin+expr.arg_offset(1)),
+            deduce_1_expr_variant(
+                    *(begin+expr.arg_offset(1)),
+                    begin+expr.arg_offset(1)+1,
+                    end)
+        };
+    }
+    real_number deduce_1_expr(binary_expr<'*'> expr, auto begin, auto end) {
+        return deduce_1_expr_mul(*begin, begin+1, begin+expr.arg_offset(1),
+                begin+expr.arg_offset(1), end);
+    }
+    real_number deduce_1_expr_variant(real_number::expr_variant expr, auto begin, auto end) {
+        return std::visit(
+                [&begin, &end] (auto& t) {
+                    return deduce_1_expr(t, begin, end);
+                },
+                expr
+                );
+    }
+
+    real_number deduce_1(const real_number& v) {
+        return deduce_1_expr_variant(v[0], v.begin()+1, v.end());
+    }
 
     // output
     std::ostream& output(std::ostream& out, int64 v, auto begin, auto end) {
@@ -139,10 +256,6 @@ namespace real_number {
     }
 
     std::ostream& operator<<(std::ostream& out, const real_number& v) {
-        return std::visit(
-                [&out, &v](auto& t) -> auto&{
-                    return output(out, t, v.begin()+1, v.end());
-                },
-                v[0]);
+        return output(out, v[0], v.begin()+1, v.end());
     }
 }
