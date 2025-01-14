@@ -6,6 +6,8 @@
 #include <iostream>
 #include <cassert>
 #include <vector>
+#include <utility>
+#include <map>
 
 namespace real_number {
     using offset_t = size_t;
@@ -27,7 +29,7 @@ namespace real_number {
     public:
         binary_expr() = default;
         binary_expr(offset_t arg0, offset_t arg1) : m_args{arg0, arg1} {}
-        auto arg_offset(int index) {
+        auto arg_offset(int index) const {
             return m_args[index];
         }
     private:
@@ -255,7 +257,97 @@ namespace real_number {
                 );
     }
 
+    void left_deep_visit_expr(int64 v, auto begin, auto end, auto& visitor) {
+        visitor(v);
+    }
+    void left_deep_visit_expr(auto expr, auto begin, auto end, auto& visitor) {
+        visitor(expr);
+        left_deep_visit_expr_variant(*begin, begin+1, end, visitor);
+    }
+    template<char OP>
+    void left_deep_visit_expr(binary_expr<OP> expr, auto begin, auto end, auto& visitor) {
+        visitor(expr);
+        left_deep_visit_expr_variant(*begin, begin+1, begin + expr.arg_offset(1), visitor);
+        left_deep_visit_expr_variant(*(begin+expr.arg_offset(1)), begin+expr.arg_offset(1)+1, end, visitor);
+    }
+
+    void left_deep_visit_expr_variant(real_number::expr_variant expr, auto begin, auto end, auto& visitor) {
+        std::visit(
+                [&begin, &end, &visitor](auto& t) {
+                    left_deep_visit_expr(t, begin, end, visitor);
+                },
+                expr);
+    }
+
+    void left_deep_visit(const real_number& v, auto& visitor) {
+        left_deep_visit_expr_variant(v[0], v.begin()+1, v.end(), visitor);
+    }
+
+
     std::ostream& operator<<(std::ostream& out, const real_number& v) {
-        return output(out, v[0], v.begin()+1, v.end());
+        std::vector<std::tuple<char, int,int>> priv_ranges{};
+        int begin = 0, end = v.size();
+        int prev_prio = 0;
+        do{
+            int count = 0;
+            for (auto i = begin; i < end; i++) {
+                auto& expr = v[i];
+                if (std::holds_alternative<int64>(expr)) {
+                    auto& int64_expr = std::get<int64>(expr);
+                    out << int64_expr;
+                }
+                else if (std::holds_alternative<binary_expr<'+'>>(expr)) {
+                    auto& b_e = std::get<binary_expr<'+'>>(expr);
+                    if (prev_prio > 0) {
+                        prev_prio = 0;
+                        out << "(";
+                        priv_ranges.emplace_back(')', 0, 0);
+                    }
+                    priv_ranges.emplace_back('+', i +1+ b_e.arg_offset(1), end);
+                    end = i +1+ b_e.arg_offset(1);
+                }
+                else if (std::holds_alternative<binary_expr<'-'>>(expr)) {
+                    auto& b_e = std::get<binary_expr<'-'>>(expr);
+                    if (prev_prio > 0) {
+                        prev_prio = 0;
+                        out << "(";
+                        priv_ranges.emplace_back(')', 0, 0);
+                    }
+                    priv_ranges.emplace_back('-', i+1+b_e.arg_offset(1), end);
+                    end = i+1+b_e.arg_offset(1);
+                }
+                else if (std::holds_alternative<binary_expr<'*'>>(expr)) {
+                    auto& b_e = std::get<binary_expr<'*'>>(expr);
+                    priv_ranges.emplace_back('*', i+1+b_e.arg_offset(1), end);
+                    end = i+1+b_e.arg_offset(1);
+                    prev_prio = 1;
+                }
+                else if (std::holds_alternative<binary_expr<'/'>>(expr)) {
+                    auto& b_e = std::get<binary_expr<'/'>>(expr);
+                    priv_ranges.emplace_back('/', i+1+b_e.arg_offset(1), end);
+                    end = i+1+b_e.arg_offset(1);
+                    prev_prio = 1;
+                }
+                else if (std::holds_alternative<sqrt_expr>(expr)) {
+                    out << "sqrt(";
+                    count++;
+                }
+            }
+            for (int i = 0; i < count; i++) {
+                out << ")";
+            }
+
+            if (!priv_ranges.empty()) {
+                auto [op, prev_begin, prev_end] = priv_ranges.back();
+                priv_ranges.pop_back();
+                out << op;
+                begin = prev_begin;
+                end = prev_end;
+            }
+            else {
+                break;
+            }
+        } while (true);
+        return out;
     }
 }
